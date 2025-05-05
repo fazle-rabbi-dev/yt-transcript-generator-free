@@ -1,22 +1,17 @@
+const express = require("express");
 const axios = require("axios");
 const cheerio = require("cheerio");
 const xml2js = require("xml2js");
+const cors = require("cors");
 
-/**
- * Vercel Node.js function with CORS support
- */
-module.exports = async function handler(req, res) {
-	// ✅ Add CORS headers
-	res.setHeader("Access-Control-Allow-Origin", "*");
-	res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-	res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-	// ✅ Handle preflight request
-	if (req.method === "OPTIONS") {
-		res.status(200).end();
-		return;
-	}
+// ✅ Enable CORS
+app.use(cors());
 
+// ✅ GET Endpoint to fetch transcript
+app.get("/api/transcript", async (req, res) => {
 	const { videoId } = req.query;
 
 	if (!videoId) {
@@ -43,13 +38,17 @@ module.exports = async function handler(req, res) {
 		const playerData = JSON.parse(json);
 
 		const captions = playerData?.captions;
-		if (!captions) return res.status(404).json({ error: "No captions available" });
+		if (!captions) {
+			return res.status(404).json({ error: "No captions available" });
+		}
 
 		const transcriptUrl = captions.playerCaptionsTracklistRenderer.captionTracks[0].baseUrl;
+
 		const transcriptXml = await axios.get(transcriptUrl);
 		const parsed = await xml2js.parseStringPromise(transcriptXml.data);
 
 		const transcript = parsed.transcript.text.map((t) => t._).join(" ");
+
 		res.status(200).json({ transcript });
 	} catch (err) {
 		res.status(500).json({
@@ -57,4 +56,9 @@ module.exports = async function handler(req, res) {
 			detail: err.message,
 		});
 	}
-};
+});
+
+// ✅ Start the server
+app.listen(PORT, () => {
+	console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
